@@ -1,0 +1,7 @@
+# Composition strategy
+
+`solveLayout(activities, width, focus)` is a pure function. It filters active visible instances, orders pins before focus before numeric priority, and allocates columns while their declared minimum widths plus 20px gaps fit. Overflow instances stack in the final column. All content stays in normal document flow, preventing overlapping interactive surfaces. Narrow devices use one stack; tables and diagrams have their own horizontal overflow. The first column receives a 1.3 relative weight, others 1.
+
+This algorithm handles arbitrary combinations and multiple instances; it does not switch among screen-specific modes. Reader, quiz, explanation and table can coexist through the same function. ResizeObserver updates usable width. Height is handled by scrolling rather than hiding content. Focus/expand controls hide other unpinned components; the activity strip restores them. AI pin restrictions are enforced in the executor.
+
+Limitations: CSS tracks enforce declared minimum widths, clamped to the viewport for narrow devices. Explicit nested relationship trees, anchored inline insertion, floating containers, touch divider resize, viewport-height priorities and accurate user pin spatial locking are not implemented. Pins currently protect visibility and priority, not fixed coordinates. The initial solver is a safe normal-flow foundation, not the complete constraint solver in the target specification.

@@ -1,0 +1,80 @@
+package dev.folio.model.command
+
+import dev.folio.model.library.SubjectId
+import dev.folio.model.workspace.AppDestination
+import dev.folio.model.workspace.UserPreferences
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+/** One semantic command surface for home/library controls and existing workspace capabilities. */
+@Serializable
+sealed interface AppCommand {
+    @Serializable @SerialName("revision.schedule") data class ScheduleRevision(val activityId: String, val questionId: String? = null, val delayDays: Int) : AppCommand
+    @Serializable @SerialName("revision.open") data class OpenRevision(val id: String) : AppCommand
+    @Serializable @SerialName("revision.complete") data class CompleteRevision(val id: String, val expectedVersion: Int) : AppCommand
+    @Serializable @SerialName("revision.remove") data class RemoveRevision(val id: String, val expectedVersion: Int) : AppCommand
+    @Serializable @SerialName("app.navigate") data class Navigate(val destination: AppDestination) : AppCommand
+    @Serializable @SerialName("app.back") data object Back : AppCommand
+    @Serializable @SerialName("subject.open") data class OpenSubject(val subject: SubjectId) : AppCommand
+    @Serializable @SerialName("chapter.open") data class OpenChapterLibrary(val chapterId: String) : AppCommand
+    @Serializable @SerialName("library.search") data class SearchChapters(val text: String) : AppCommand
+    @Serializable @SerialName("library.request_import") data class RequestPdfImport(val chapterId: String) : AppCommand
+    @Serializable @SerialName("library.open_pdf") data class OpenPdf(val pdfId: String) : AppCommand
+    @Serializable @SerialName("library.study_pdf") data class StudyPdf(val pdfId: String) : AppCommand
+    @Serializable @SerialName("source.engineer_page") data class EngineerPage(val documentId: String, val pageIndex: Int) : AppCommand
+    @Serializable @SerialName("source.review") data class ReviewPage(val documentId: String, val pageIndex: Int) : AppCommand
+    @Serializable @SerialName("source.review_region") data class ReviewRegion(val source: dev.folio.model.source.SourceAnchor?) : AppCommand
+    @Serializable @SerialName("source.correction.propose") data class ProposeCorrection(val id: String,
+        val source: dev.folio.model.source.SourceAnchor, val expectedOriginal: String, val replacement: String,
+        val expectedApprovedId: String? = null) : AppCommand
+    @Serializable @SerialName("source.correction.approve") data class ApproveCorrection(val id: String) : AppCommand
+    @Serializable @SerialName("source.correction.remove") data class RemoveCorrection(val id: String) : AppCommand
+    @Serializable @SerialName("source.correction.draft") data class SaveCorrectionDraft(val id: String,
+        val draft: dev.folio.model.source.SourceCorrectionDraft?) : AppCommand
+    @Serializable @SerialName("voice.start") data object StartVoice : AppCommand
+    @Serializable @SerialName("voice.finish") data object FinishVoice : AppCommand
+    @Serializable @SerialName("voice.cancel") data object CancelVoice : AppCommand
+    @Serializable @SerialName("voice.review") data object ReviewVoice : AppCommand
+    @Serializable @SerialName("voice.auto_send") data class VoiceAutoSend(val enabled: Boolean) : AppCommand
+    @Serializable @SerialName("pdf.page") data class PdfPage(val pageIndex: Int) : AppCommand
+    @Serializable @SerialName("pdf.next") data object NextPdfPage : AppCommand
+    @Serializable @SerialName("pdf.previous") data object PreviousPdfPage : AppCommand
+    @Serializable @SerialName("pdf.zoom") data class PdfZoom(val zoom: Float) : AppCommand
+    @Serializable @SerialName("pdf.transform") data class PdfTransform(val zoom: Float, val panX: Float, val panY: Float) : AppCommand
+    @Serializable @SerialName("preferences.set") data class SetPreferences(val preferences: UserPreferences) : AppCommand
+    @Serializable @SerialName("workspace.command") data class WorkspaceAction(val command: WorkspaceCommand) : AppCommand
+    @Serializable @SerialName("workspace.undo_layout") data object UndoLayout : AppCommand
+    @Serializable @SerialName("quiz.select") data class SelectAnswer(val activityId: String, val questionId: String, val option: Int) : AppCommand
+    @Serializable @SerialName("quiz.question") data class QuizQuestion(val activityId: String, val questionId: String) : AppCommand
+    @Serializable @SerialName("quiz.submit") data class SubmitAnswer(val activityId: String, val questionId: String) : AppCommand
+    @Serializable @SerialName("recall.response") data class RecallResponse(val activityId: String, val expectedText: String, val text: String) : AppCommand
+    @Serializable @SerialName("recall.reveal") data class RevealRecall(val activityId: String) : AppCommand
+    @Serializable @SerialName("recall.rate") data class RateRecall(val activityId: String, val rating: dev.folio.model.activity.RecallRating) : AppCommand
+    @Serializable @SerialName("recall.restart") data class RestartRecall(val activityId: String) : AppCommand
+    @Serializable @SerialName("reader.position") data class ReadingPosition(val activityId: String, val index: Int, val offset: Int) : AppCommand
+    @Serializable @SerialName("reader.focus_sentence") data class FocusSentence(val activityId: String, val sentenceId: String) : AppCommand
+    @Serializable @SerialName("annotation.create") data class CreateAnnotation(val activityId: String, val id: String,
+        val source: dev.folio.model.source.SourceAnchor, val sentenceId: String? = null,
+        val kind: dev.folio.model.source.AnnotationKind, val text: String = "") : AppCommand
+    @Serializable @SerialName("annotation.draft") data class SaveAnnotationDraft(val activityId: String, val draftId: String,
+        val draft: dev.folio.model.source.AnnotationDraft?) : AppCommand
+    @Serializable @SerialName("annotation.update") data class UpdateAnnotation(val activityId: String, val id: String,
+        val expectedText: String, val text: String) : AppCommand
+    @Serializable @SerialName("annotation.remove") data class RemoveAnnotation(val activityId: String, val id: String,
+        val expectedText: String) : AppCommand
+    @Serializable @SerialName("component.pin") data class Pin(val componentId: String, val pinned: Boolean) : AppCommand
+    @Serializable @SerialName("diagram.transform") data class Transform(val activityId: String, val zoom: Float, val panX: Float, val panY: Float) : AppCommand
+}
+
+@Serializable
+data class AppCommandBatch(val schemaVersion: Int = 1, val requestId: String,
+    val expectedRevision: Long? = null, val commands: List<AppCommand>)
+
+sealed interface AppEffect {
+    data class RequestPdfImport(val chapterId: String) : AppEffect
+    data class EngineerPage(val request: dev.folio.model.port.EngineeringRequest) : AppEffect
+    data object StartVoice : AppEffect
+    data object FinishVoice : AppEffect
+    data object CancelVoice : AppEffect
+    data object ReviewVoice : AppEffect
+}

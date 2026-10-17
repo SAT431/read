@@ -1,0 +1,47 @@
+package dev.folio.runtime.practice
+
+import dev.folio.model.activity.*
+import dev.folio.model.command.*
+import dev.folio.model.port.SourceCatalog
+import dev.folio.model.workspace.Workspace
+
+class RevisionQueueReducer(private val catalog: SourceCatalog, private val now: () -> Long = System::currentTimeMillis) {
+    fun apply(state: Workspace, command: AppCommand, actor: CommandActor): Workspace {
+        val time = now(); require(time >= 0)
+        val items = state.revisionItems
+        val updated = when (command) {
+            is AppCommand.ScheduleRevision -> {
+                require(command.delayDays in 0..365)
+                val target = RevisionTargets.resolve(state, command.activityId, command.questionId) ?: error("Unknown quiz question or recall card")
+                require(catalog.contains(target.source)) { "Review source unavailable" }
+                require(target.prompt.isNotBlank() && target.prompt.length <= 20000)
+                require(command.questionId == null || command.questionId.length <= 200)
+                val delay = command.delayDays * 86_400_000L
+                require(time <= Long.MAX_VALUE - delay)
+                val id = RevisionTargets.id(command.activityId, command.questionId)
+                val old = items[id]
+                require(old != null || items.size < 1000) { "Revision queue limit reached" }
+                require((old?.version ?: 0) < Int.MAX_VALUE)
+                val item = RevisionItem(id, command.activityId, command.questionId, target.source, target.prompt,
+                    time + delay, old?.createdAtEpochMillis ?: time, time, (old?.version ?: 0) + 1,
+                    scheduledByAssistant = actor == CommandActor.AI, completions = old?.completions.orEmpty())
+                items + (id to item)
+            }
+            is AppCommand.CompleteRevision -> {
+                val item = items[command.id] ?: error("Unknown revision item")
+                require(item.version == command.expectedVersion && item.version < Int.MAX_VALUE) { "Revision item changed; refresh before completing" }
+                require(!item.done && item.completions.size < 100) { "Already reviewed or completion history limit reached" }
+                items + (item.id to item.copy(done = true, version = item.version + 1, updatedAtEpochMillis = time,
+                    completions = item.completions + RevisionCompletion(time, actor == CommandActor.AI)))
+            }
+            is AppCommand.RemoveRevision -> {
+                val item = items[command.id] ?: error("Unknown revision item")
+                require(item.version == command.expectedVersion) { "Revision item changed; refresh before removing" }
+                items - item.id
+            }
+            else -> error("Not a revision mutation")
+        }
+        RevisionQueueValidator.validate(updated)
+        return state.copy(revisionItems = updated)
+    }
+}

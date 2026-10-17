@@ -1,0 +1,20 @@
+package dev.folio.runtime.practice
+
+import dev.folio.model.activity.RevisionItem
+
+object RevisionQueueValidator {
+    fun validate(items: Map<String, RevisionItem>) {
+        require(items.size <= 1000)
+        items.forEach { (id, item) ->
+            require(id == item.id && id == RevisionTargets.id(item.activityId, item.questionId))
+            require(item.activityId.isNotBlank() && item.activityId.length <= 100 && (item.questionId?.length ?: 0) <= 200)
+            require(item.source.documentId.isNotBlank() && item.source.pageIndex >= 0)
+            require(item.prompt.isNotBlank() && item.prompt.length <= 20000)
+            require(item.version >= 1 && item.dueAtEpochMillis >= 0 && item.createdAtEpochMillis >= 0 && item.updatedAtEpochMillis >= 0)
+            require(item.completions.size <= 100 && item.completions.all { it.completedAtEpochMillis >= 0 })
+            require(!item.done || item.completions.isNotEmpty())
+        }
+        require(items.values.sumOf { it.prompt.length.toLong() } <= 1_000_000)
+        require(items.values.sumOf { it.completions.size } <= 10000)
+    }
+}

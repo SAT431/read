@@ -1,0 +1,33 @@
+package dev.folio.runtime.practice
+
+import dev.folio.model.activity.ActivityData
+import dev.folio.model.command.*
+import dev.folio.model.library.LibraryPdf
+import dev.folio.model.port.*
+import dev.folio.model.ui.Presentation
+import dev.folio.model.workspace.*
+import dev.folio.runtime.command.CommandExecutor
+import dev.folio.runtime.interaction.*
+
+class RevisionNavigation(private val executor: CommandExecutor, private val catalog: SourceCatalog, private val curriculum: CurriculumCatalog) {
+    fun open(state: Workspace, id: String, pdfs: List<LibraryPdf>, policy: ExecutionPolicy): Workspace {
+        val item = state.revisionItems[id] ?: error("Unknown revision item")
+        val target = RevisionTargets.resolve(state, item.activityId, item.questionId) ?: error("Review activity unavailable")
+        require(target.source == item.source && target.prompt == item.prompt && catalog.contains(target.source)) { "Review target changed; schedule it again" }
+        val resumed = executor.execute(state, CommandBatch(requestId = "revision-open", commands = listOf(WorkspaceCommand.ResumeActivity(item.activityId))), policy)
+        require(resumed.trace.accepted) { resumed.trace.error.orEmpty() }
+        var next = resumed.state
+        val component = next.components.getValue(requireNotNull(next.focusedComponentId))
+        if (component.presentation == Presentation.CAPSULE) {
+            val expanded = executor.execute(next, CommandBatch(requestId = "revision-expand", commands = listOf(
+                WorkspaceCommand.SetPresentation(component.id, Presentation.SURFACE))), policy)
+            require(expanded.trace.accepted) { expanded.trace.error.orEmpty() }; next = expanded.state
+        }
+        if (next.activities.getValue(item.activityId).data is ActivityData.Quiz)
+            next = LearningReducer(catalog).reduce(next, LearningInteraction.QuizQuestion(item.activityId, requireNotNull(item.questionId)), policy.actor)
+        val pdf = pdfs.firstOrNull { it.document.id == item.source.documentId }
+        val chapter = curriculum.chapters().firstOrNull { it.id == pdf?.chapterId }
+        return next.copy(navigation = next.navigation.copy(destination = AppDestination.WORKSPACE,
+            pdfId = pdf?.id, pdfPageIndex = item.source.pageIndex, chapterId = chapter?.id, subject = chapter?.subject))
+    }
+}

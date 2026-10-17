@@ -1,0 +1,50 @@
+{
+  "app": [
+    "core:model",
+    "core:runtime",
+    "core:designsystem",
+    "core:ui",
+    "data:local",
+    "feature:study",
+    "feature:workspace",
+    "feature:explorer",
+    "core:catalog",
+    "feature:library",
+    "data:remote",
+    "feature:assistant"
+  ],
+  "core:model": [],
+  "core:runtime": [
+    "core:model"
+  ],
+  "core:designsystem": [],
+  "core:ui": [
+    "core:runtime",
+    "core:designsystem"
+  ],
+  "feature:assistant": [
+    "core:ui"
+  ],
+  "data:remote": [
+    "core:model"
+  ],
+  "data:local": [
+    "core:model",
+    "core:runtime"
+  ],
+  "feature:study": [
+    "core:ui"
+  ],
+  "feature:workspace": [
+    "core:ui"
+  ],
+  "feature:explorer": [
+    "core:ui"
+  ],
+  "core:catalog": [
+    "core:model"
+  ],
+  "feature:library": [
+    "core:ui"
+  ]
+}

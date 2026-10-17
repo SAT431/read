@@ -1,0 +1,38 @@
+# Native study search
+
+Updated 16 October 2026. Implemented, installed and verified with focused native/device checks. Open Home → Search your study, or say Open search. The complete product and release goal remains active.
+
+## Search and reopening
+
+The new screen searches curriculum chapter titles/subjects, imported PDF names, already cached readable passages/captions/lists, saved note text, bookmark excerpts, current and archived quiz prompts, and recall prompts. All-category or per-category searches use bounded literal words with Unicode normalization/case folding; this is native lexical search, not semantic/vector retrieval. Ordering and 40-record result pages are deterministic. Total match count, previous/next and a first-page recovery control expose results beyond one response page.
+
+Search uses already owned metadata/text. It never uploads a PDF, processes an unprepared page or spends a provider request to build the index. Unprocessed PDF text, private annotation drafts, private recall responses, hidden recall references, quiz explanations and answer options are excluded. Explicit UI explorer fixture passages are excluded; source-linked saved sample work is labelled when the cached page identifies it as a fixture. Results can also match the linked document title when metadata exists.
+
+Every open reconstructs the target from current native records and checks its exact fingerprint, target shape and ownership. A changed/missing target rejects without a partial batch or unhandled lookup error. Chapters/PDFs use existing library navigation. A passage resumes an existing reader for that document (or creates a validated empty reader), focuses the proper element and syncs PDF context through the shared source/pin path. It does not create a reading report or replace notes. Bookmarks keep checksum/wording guards and remain visible but disabled when outdated. A saved note opens the native notes view filtered to its saved text even when the source is missing. Practice opens an existing prompt; archived questions remain read-only, current answers are retained and recall opens without revealing its reference or changing its response.
+
+## Background work, cache and provider boundaries
+
+StudySearchEngine and SearchMaterializer are pure runtime code. SourceCatalog.cachedPages enumerates cached data without scanning all possible file pages. The production library adapter filters unknown documents, obsolete PDF checksums/out-of-range pages and older engineering versions; the corrected catalogue overlays separately approved wording. Immutable originals and stored machine pages remain separate.
+
+StudySearchSession collects workspace, library and source changes in the application scope, runs indexing on Dispatchers.Default and cancels superseded queries. Empty/inactive search contexts do not rebuild the corpus. It publishes only if captured workspace/library/source state is still current. UI/provider lookup rejects stale query/filter/page/revision or library snapshots. The native library snapshot is transient and never serialized to Gemini. The assistant waits briefly for a current projection before making a search-context request; a pending flag prevents an unready projection being treated as known-empty.
+
+Typed search.query, search.page and search.open share AppCommandExecutor with native controls. The API receives only the current page (at most 40 results), total/page/revision metadata and native target fingerprints, plus searchPending. Native query text is redacted from navigation and the serialized search snapshot. Existing annotation draft redaction remains in effect. A user may of course explicitly put search words in their assistant utterance. The prompt forbids invented results and describes cached-only coverage and separate follow-up use of fresh results. The subsequent ASSISTANT_CONTINUATION.md update adds bounded automatic fresh-context rounds: one compound user request can search and open without another Send. Platform/background effects remain waiting boundaries.
+
+## Executed checks
+
+344 unit tests pass, zero failures/errors (13 new cases). They cover all seven types, stable bounded pagination, normalized multiword search, private/hidden-content exclusions, exact library/passage opens, retained unavailable notes/outdated bookmarks, stale/malformed targets, source/pin guards, archived quiz/current draft preservation, non-revealing recall opens, cancellation, query/source/library freshness, provider redaction and current-checksum/highest-version cache enumeration. The tests caught a real chapter indexing failure caused by attempting to serialize a nonserializable curriculum record; chapter evidence is now encoded explicitly, and the full suite passes.
+
+Architecture policy passes for 13 modules / 318 focused production Kotlin files. App/helper builds, lint/export and packaged prompt-to-source equality pass. Both APKs installed in place with install -r. Seven distinct physical-tablet checks passed:
+
+- StudySearchUiTest: actual background projection at 1.8 font scale with 45 saved notes, result paging, saved-note view, selected cached-passage reopen, retained quiz/notes/private drafts/bookmarks/reading reports and durable reread. Final pass: 21.408 seconds. Its first assertion ambiguously selected both the native note search field and note body; the assertion was narrowed to the non-editable body before passing.
+- StudySearchStorageTest: actual Room close/reopen restores query/category/page and indexes a durable cached passage without any provider. Passed again in the final three-test regression batch.
+- LiveStudySearchTest: real configured Gemini issues search, then uses fresh native result context to open the exact cached question whose original passage remains unavailable. Checked answers, notes, private draft and reading records remain unchanged; draft redaction is asserted before calling Gemini. Passed in 6.866 seconds.
+- StudySearchAppRouteUiTest: actual installed Home link and typed chapter search open the genuine Laws of Motion chapter library with native ID/fingerprint and unchanged learning activities.
+- MainActivityRotationTest: production graph/state retention across an actual orientation recreation. Route and rotation passed together in 27.372 seconds.
+- SavedNotesUiTest and QuizAttemptsUiTest: native orphan-draft/separate-note and repeated-attempt/history regressions passed. These plus search storage passed together in 56.435 seconds.
+
+artifacts/qa/study-search-large-text.png was inspected: page-two cards/actions and previous/disabled-next controls remain reachable without clipping. All learner-record mutations use isolated labelled fixtures and temporary Room databases. Production checks change navigation/rotation only. Normal Folio was cold-launched after testing; original PDFs and keys were not reset or exposed.
+
+## Remaining gates
+
+This does not index unprocessed entire PDFs, image-only figure semantics, private drafts, correction-editor drafts, arbitrary written strokes or all answer/explanation contents. Search snippets currently show a bounded beginning rather than a highlighted matched-word window. Full library-scale memory/latency profiling, richer ranking, asynchronous job/picker planning beyond the bounded continuation update, broad voice search wording, universal-source/annotation history, keyboard/TalkBack/stylus/selection acceptance, full editor interruption coverage and the remaining component/refinement/release gates stay open. Source-cache backup restore/retention and malformed-workspace/original-file recovery remain separate unfinished work. Production readiness is not claimed.

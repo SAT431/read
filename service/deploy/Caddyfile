@@ -1,0 +1,16 @@
+{$FOLIO_HOST} {
+    @pdfUpload {
+        method POST
+        path /v1/documents
+    }
+    @regularRequest not path /v1/documents
+    route {
+        request_body @pdfUpload {
+            max_size 101MiB
+        }
+        request_body @regularRequest {
+            max_size 16MiB
+        }
+        reverse_proxy api:8000
+    }
+}

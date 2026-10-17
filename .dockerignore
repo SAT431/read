@@ -1,0 +1,14 @@
+**/.env
+**/.env.*
+!service/.env.example
+**/__pycache__
+**/build
+**/.gradle
+**/.kotlin
+**/artifacts
+.venv
+node_modules
+data
+.git
+dist
+**/local.properties

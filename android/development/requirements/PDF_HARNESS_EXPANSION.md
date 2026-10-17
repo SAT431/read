@@ -1,0 +1,5 @@
+# User directive: app-level PDF harness and usable compact UI
+
+16 October 2026. Study with AI must analyze an imported PDF and frame source-linked topics first. Arbitrary selected topics must lead to their actual original pages, native text extraction and original image cropping. Build an app-level harness of prebuilt tools/capabilities that Gemini can use across imported PDFs, including another PDF in the same chapter. The AI must discover/open that PDF's topics and bring their source-linked material into the current reading/study. Retain document/source ownership and learner records. Make the interface distributed and compact, closing panels when unnecessary. Exercise the actual uploaded Cell PDF workflow and inspect screenshots to find and fix usability problems. The architecture remains direct Android Gemini/Groq with encrypted user keys and modular small files.
+
+Implementation/evidence: PDF_HARNESS.md. Keep the complete requested outcome active; compiled tests or partial live steps are not whole-journey acceptance.

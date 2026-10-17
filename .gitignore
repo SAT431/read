@@ -1,0 +1,16 @@
+node_modules/
+dist/
+data/
+.venv/
+__pycache__/
+.pytest_cache/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+android/.gradle/
+android/.kotlin/
+android/**/build/
+android/local.properties
+android/.idea/
+android/artifacts/
