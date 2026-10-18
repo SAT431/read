@@ -38,9 +38,9 @@ class KeystoreProfileTest {
         val id = UUID.randomUUID().toString()
         val alias = "test-model-upgrade-$id"
         val name = "$id.bin"
-        val old = KeystoreProviderProfileStore(context, alias, name, "gemini-3.8-flash")
+        val old = KeystoreProviderProfileStore(context, alias, name, "gemini-3.5-flash-lite")
         val current = KeystoreProviderProfileStore(context, alias, name)
-        val profile = ProviderProfile("test-gemini-model-upgrade", "test-groq-model-upgrade", "gemini-3.8-flash")
+        val profile = ProviderProfile("test-gemini-model-upgrade", "test-groq-model-upgrade", "gemini-3.5-flash-lite")
         val file = File(context.noBackupFilesDir, name)
         try {
             old.save(profile)

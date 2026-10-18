@@ -1,0 +1,6 @@
+{
+  "name": "Folio",
+  "description": "AI-powered NCERT study workspace with full-screen PDF viewer, smart topic mapping, structured NCERT notes & figure extraction, movable AI mentor popup, voice STT, and interactive doubt marker.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -15,16 +15,19 @@ object DocumentStudyRules {
         require(outline.pageCount in 1..10000 && outline.indexedPages.distinct().size == outline.indexedPages.size)
         require(outline.indexedPages.all { it in 0 until outline.pageCount } && outline.topics.size <= 2000)
         require(outline.topics.map { it.id }.distinct().size == outline.topics.size)
-        outline.topics.forEach { t -> require(t.id.length in 1..100 && t.title.length in 1..200 && t.summary.length <= 2000)
+        outline.topics.forEach { t ->
+            require(t.id.length in 1..100 && t.title.length in 1..200 && t.summary.length <= 2000)
             require(t.subtopics.size <= 30 && t.subtopics.all { it.length in 1..200 })
             require(t.firstPage in 0 until outline.pageCount && t.lastPage in t.firstPage until outline.pageCount)
             require(t.top.isFinite() && t.bottom.isFinite() && t.top in 0f..999.99f && t.bottom in .01f..1000f)
             require(t.firstPage != t.lastPage || t.top < t.bottom)
-            require((t.firstPage..t.lastPage).all { it in outline.indexedPages }) }
+            require((t.firstPage..t.lastPage).all { it in outline.indexedPages })
+        }
     }
     fun validatePlans(plans: Map<String, DocumentStudyPlan>) {
         require(plans.size <= 500)
-        plans.forEach { (id, p) -> require(id == p.pdfId && id.isNotBlank() && p.checksum.length in 1..128)
+        plans.forEach { (id, p) ->
+            require(id == p.pdfId && id.isNotBlank() && p.checksum.length in 1..128)
             require(p.outlineFingerprint.length == 64 && p.topicIds.size <= 2000 && p.topicIds.distinct().size == p.topicIds.size)
             require(p.pages.size <= 10000 && p.pages == p.pages.distinct().sorted() && p.pages.all { it >= 0 })
             require(p.mode != StudyMode.READING || p.pages.isNotEmpty())
@@ -34,35 +37,79 @@ object DocumentStudyRules {
                 require(link.pdfId.isNotBlank() && link.checksum.length in 1..128 && link.outlineFingerprint.length == 64)
                 require(link.topicIds.isNotEmpty() && link.topicIds.size <= 2000 && link.topicIds.distinct().size == link.topicIds.size)
                 require(link.pages.isNotEmpty() && link.pages.size <= 10000 && link.pages == link.pages.distinct().sorted() && link.pages.all { it >= 0 })
-                var cursor=link;val visited=mutableSetOf(link.pdfId)
-                while(cursor.placement!=null) {
-                    val at=requireNotNull(cursor.placement)
-                    require(visited.add(at.afterPdfId)){"Circular study placement"}
-                    if(at.afterPdfId==p.pdfId){require(at.afterPageIndex in p.pages);break}
-                    cursor=p.attachedSources.firstOrNull{it.pdfId==at.afterPdfId} ?: error("Study insertion source unavailable")
+                var cursor = link
+                val visited = mutableSetOf(link.pdfId)
+                while (cursor.placement != null) {
+                    val at = requireNotNull(cursor.placement)
+                    require(visited.add(at.afterPdfId)) { "Circular study placement" }
+                    if (at.afterPdfId == p.pdfId) {
+                        require(at.afterPageIndex in p.pages)
+                        break
+                    }
+                    cursor = p.attachedSources.firstOrNull { it.pdfId == at.afterPdfId } ?: error("Study insertion source unavailable")
                     require(at.afterPageIndex in cursor.pages)
                 }
             }
             val activePages = if (p.activeSourcePdfId == null || p.activeSourcePdfId == p.pdfId) p.pages
-                else p.attachedSources.firstOrNull { it.pdfId == p.activeSourcePdfId }?.pages ?: error("Unknown collection source")
-            require(p.version in 1..1_000_000 && p.preparationVersion in 0..p.version && (activePages.isEmpty() || p.pageIndex in activePages) && p.sentenceId?.length?.let { it in 1..200 } != false) }
+            else p.attachedSources.firstOrNull { it.pdfId == p.activeSourcePdfId }?.pages ?: error("Unknown collection source")
+            require(p.version in 1..1_000_000 && p.preparationVersion in 0..p.version && (activePages.isEmpty() || p.pageIndex in activePages) && p.sentenceId?.length?.let { it in 1..200 } != false)
+        }
     }
     fun topics(plan: DocumentStudyPlan, outline: DocumentOutline): List<DocumentTopic> {
         require(plan.checksum == outline.checksum && plan.outlineFingerprint == fingerprint(outline)) { "Topic map changed. Select topics again." }
         return outline.topics.filter { it.id in plan.topicIds }.also { require(it.size == plan.topicIds.size) }
     }
-    fun elements(page: SourcePage, topics: List<DocumentTopic>): List<SourceElement> = page.elements.sortedBy { it.order }.filter { e ->
-        topics.any { t -> page.pageIndex in t.firstPage..t.lastPage && (e.bounds?.let { b ->
-            val height = page.heightPoints ?: return@let true
-            val top = b.top / height * 1000f; val bottom = b.bottom / height * 1000f
-            bottom > (if (page.pageIndex == t.firstPage) t.top else 0f) && top < (if (page.pageIndex == t.lastPage) t.bottom else 1000f)
-        } ?: true) }
+    fun elements(page: SourcePage, topics: List<DocumentTopic>): List<SourceElement> {
+        val sorted = page.elements.sortedBy { it.order }
+        val inVerticalRange = sorted.filter { e ->
+            topics.any { t ->
+                page.pageIndex in t.firstPage..t.lastPage && (e.bounds?.let { b ->
+                    val height = page.heightPoints ?: return@let true
+                    val top = b.top / height * 1000f
+                    val bottom = b.bottom / height * 1000f
+                    bottom > (if (page.pageIndex == t.firstPage) t.top else 0f) && top < (if (page.pageIndex == t.lastPage) t.bottom else 1000f)
+                } ?: true)
+            }
+        }
+        // Further isolate by heading boundaries when multiple headings exist on the same page
+        // so selecting a specific topic (e.g. Centrosome) never pulls unrelated sections from the same page
+        val headingsOnPage = inVerticalRange.filter { it.kind == SourceElementKind.HEADING }
+        if (headingsOnPage.size <= 1) return inVerticalRange
+
+        val normalizedTopicTokens = topics.flatMap { topic ->
+            val cleaned = topic.title.lowercase().replace(Regex("^[0-9]+(\\.[0-9]+)*\\s*"), "").trim()
+            listOf(cleaned) + cleaned.split(Regex("\\s+|and|,")).filter { it.length >= 4 }
+        }.filter { it.isNotEmpty() }.distinct()
+
+        val matchedHeadingIndices = inVerticalRange.mapIndexedNotNull { idx, el ->
+            if (el.kind == SourceElementKind.HEADING) {
+                val headingLower = el.text.lowercase()
+                val matchesSelected = normalizedTopicTokens.any { token -> headingLower.contains(token) }
+                idx to matchesSelected
+            } else null
+        }
+
+        if (matchedHeadingIndices.none { it.second }) return inVerticalRange
+
+        val allowedIndices = mutableSetOf<Int>()
+        for (i in matchedHeadingIndices.indices) {
+            val (startIdx, isSelected) = matchedHeadingIndices[i]
+            if (!isSelected) continue
+            val endIdx = if (i + 1 < matchedHeadingIndices.size) matchedHeadingIndices[i + 1].first else inVerticalRange.size
+            for (k in startIdx until endIdx) {
+                allowedIndices.add(k)
+            }
+        }
+        val isolated = inVerticalRange.filterIndexed { index, _ -> index in allowedIndices }
+        return isolated.ifEmpty { inVerticalRange }
     }
     fun sentences(plan: DocumentStudyPlan, outline: DocumentOutline, catalog: SourceCatalog): List<SourceSentence> {
         val topics = topics(plan, outline)
-        return plan.pages.flatMap { index -> catalog.page(outline.documentId, index)?.let { page ->
-            val ids = elements(page, topics).map { it.id }.toSet()
-            SentenceIndex().compile(page).filter { it.source.elementId in ids }
-        }.orEmpty() }
+        return plan.pages.flatMap { index ->
+            catalog.page(outline.documentId, index)?.let { page ->
+                val ids = elements(page, topics).map { it.id }.toSet()
+                SentenceIndex().compile(page).filter { it.source.elementId in ids }
+            }.orEmpty()
+        }
     }
 }
